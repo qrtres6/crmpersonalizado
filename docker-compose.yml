@@ -1,0 +1,87 @@
+version: '3.8'
+
+services:
+  mysql:
+    image: mysql:8.0
+    container_name: crm_mysql
+    restart: unless-stopped
+    environment:
+      MYSQL_ROOT_PASSWORD: CrmApuestas2024!
+      MYSQL_DATABASE: crm_apuestas
+      MYSQL_USER: crm_user
+      MYSQL_PASSWORD: CrmApuestas2024!
+    ports:
+      - "3306:3306"
+    volumes:
+      - mysql_data:/var/lib/mysql
+      - ./docker/mysql/init.sql:/docker-entrypoint-initdb.d/init.sql:ro
+    command: --default-authentication-plugin=mysql_native_password
+    networks:
+      - crm_network
+
+  redis:
+    image: redis:7-alpine
+    container_name: crm_redis
+    restart: unless-stopped
+    ports:
+      - "6379:6379"
+    volumes:
+      - redis_data:/data
+    command: redis-server --appendonly yes
+    networks:
+      - crm_network
+
+  backend:
+    build:
+      context: ./backend
+      dockerfile: Dockerfile
+    container_name: crm_backend
+    restart: unless-stopped
+    ports:
+      - "3001:3001"
+    environment:
+      NODE_ENV: production
+      PORT: 3001
+      DB_HOST: mysql
+      DB_PORT: 3306
+      DB_NAME: crm_apuestas
+      DB_USER: crm_user
+      DB_PASS: CrmApuestas2024!
+      REDIS_HOST: redis
+      REDIS_PORT: 6379
+      JWT_SECRET: TuSecretoJWTsuperSeguro2024CambiarEnProduccion!
+      JWT_EXPIRES_IN: 7d
+      FRONTEND_URL: http://localhost:3000
+      SUPER_ADMIN_EMAIL: admin@crm.com
+      SUPER_ADMIN_PASS: admin123
+    volumes:
+      - ./backend/uploads:/app/uploads
+    depends_on:
+      - mysql
+      - redis
+    networks:
+      - crm_network
+
+  frontend:
+    build:
+      context: ./frontend
+      dockerfile: Dockerfile
+      args:
+        - REACT_APP_API_URL=http://72.62.106.165:3001/api
+        - REACT_APP_SOCKET_URL=http://72.62.106.165:3001
+    container_name: crm_frontend
+    restart: unless-stopped
+    ports:
+      - "3000:3000"
+    depends_on:
+      - backend
+    networks:
+      - crm_network
+
+volumes:
+  mysql_data:
+  redis_data:
+
+networks:
+  crm_network:
+    driver: bridge
