@@ -1,24 +1,22 @@
 const express = require('express');
 const router = express.Router();
 const ConnectionController = require('../controllers/ConnectionController');
-const { auth, requirePermission, tenantScope } = require('../middlewares');
+const { auth, tenantScope } = require('../middlewares');
 
-// Webhook Meta (sin autenticación)
-router.get('/webhook/meta', ConnectionController.metaWebhook);
-router.post('/webhook/meta', ConnectionController.metaWebhook);
+// Webhooks Meta (sin auth)
+router.get('/webhook/meta', ConnectionController.metaWebhookGet);
+router.post('/webhook/meta', ConnectionController.metaWebhookPost);
 
 // Rutas protegidas
 router.use(auth);
 router.use(tenantScope);
 
-router.get('/', requirePermission('connections', 'view'), ConnectionController.index);
-router.get('/:id', requirePermission('connections', 'view'), ConnectionController.show);
-router.post('/', requirePermission('connections', 'create'), ConnectionController.store);
-router.put('/:id', requirePermission('connections', 'edit'), ConnectionController.update);
-router.delete('/:id', requirePermission('connections', 'delete'), ConnectionController.destroy);
-
-router.post('/:id/connect', requirePermission('connections', 'edit'), ConnectionController.connect);
-router.post('/:id/disconnect', requirePermission('connections', 'edit'), ConnectionController.disconnect);
-router.get('/:id/status', requirePermission('connections', 'view'), ConnectionController.status);
+router.get('/', ConnectionController.index);
+router.post('/', ConnectionController.store);
+router.put('/:id', ConnectionController.update);
+router.post('/:id/connect', ConnectionController.connect);
+router.post('/:id/disconnect', ConnectionController.disconnect);
+router.delete('/:id', ConnectionController.destroy);
+router.get('/:id/status', ConnectionController.status);
 
 module.exports = router;
