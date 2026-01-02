@@ -2,73 +2,41 @@ const { Tenant } = require('../models');
 
 const tenantScope = async (req, res, next) => {
   try {
-    if (req.user && req.user.role === 'super_admin') {
-      const requestedTenantId = req.query.tenantId || req.params.tenantId;
-      if (requestedTenantId) {
-        const tenant = await Tenant.findByPk(requestedTenantId);
-        if (!tenant) {
-          return res.status(404).json({ success: false, message: 'Tenant no encontrado' });
-        }
-        req.tenantId = parseInt(requestedTenantId);
-        req.tenant = tenant;
+    if (req.user.role === 'super_admin') {
+      if (req.query.tenantId) {
+        req.tenantId = parseInt(req.query.tenantId);
+        req.tenant = await Tenant.findByPk(req.tenantId);
       }
       return next();
     }
-
-    if (!req.tenantId) {
-      return res.status(400).json({ success: false, message: 'Tenant no especificado' });
+    if (!req.user.tenantId) {
+      return res.status(403).json({ success: false, message: 'Usuario sin tenant asignado' });
     }
-
-    if (!req.user.tenant) {
-      const tenant = await Tenant.findByPk(req.tenantId);
-      if (!tenant) {
-        return res.status(404).json({ success: false, message: 'Tenant no encontrado' });
-      }
-      req.tenant = tenant;
-    } else {
-      req.tenant = req.user.tenant;
+    req.tenantId = req.user.tenantId;
+    req.tenant = await Tenant.findByPk(req.tenantId);
+    if (!req.tenant || req.tenant.status !== 'active') {
+      return res.status(403).json({ success: false, message: 'Tenant inactivo' });
     }
-
     next();
   } catch (error) {
-    console.error('Error en tenantScope:', error);
-    return res.status(500).json({ success: false, message: 'Error verificando tenant' });
+    console.error('Error tenant middleware:', error);
+    return res.status(500).json({ success: false, message: 'Error en el servidor' });
   }
 };
 
-const withTenant = (req, where = {}) => {
-  if (req.user && req.user.role === 'super_admin' && !req.tenantId) {
-    return where;
-  }
-  return { ...where, tenantId: req.tenantId };
+const withTenant = (req) => {
+  if (req.user.role === 'super_admin' && !req.tenantId) return {};
+  return { tenantId: req.tenantId };
 };
 
-const verifyResourceTenant = (model) => {
-  return async (req, res, next) => {
-    try {
-      const resourceId = req.params.id;
-      if (!resourceId) return next();
-
-      const resource = await model.findByPk(resourceId);
-      if (!resource) {
-        return res.status(404).json({ success: false, message: 'Recurso no encontrado' });
-      }
-
-      if (req.user.role === 'super_admin') {
-        req.resource = resource;
-        return next();
-      }
-
-      if (resource.tenantId !== req.tenantId) {
-        return res.status(403).json({ success: false, message: 'No tienes acceso' });
-      }
-
-      req.resource = resource;
-      next();
-    } catch (error) {
-      return res.status(500).json({ success: false, message: 'Error verificando acceso' });
-    }
+const requirePermission = (module, action) => {
+  return (req, res, next) => {
+    if (req.user.role === 'super_admin') return next();
+    if (req.user.role === 'admin') return next();
+    const permissions = req.user.permissions || {};
+    if (permissions[module]?.[action]) return next();
+    return res.status(403).json({ success: false, message: 'Sin permisos' });
   };
 };
 
-module.exports = { tenantScope, withTenant, verifyResourceTenant };
+module.exports = { tenantScope, withTenant, requirePermission };
