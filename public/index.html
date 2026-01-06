@@ -1,0 +1,899 @@
+<!DOCTYPE html>
+<html lang="es">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <title>WhatsApp Automation</title>
+  <script src="/socket.io/socket.io.js"></script>
+  <style>
+    * { box-sizing: border-box; margin: 0; padding: 0; }
+
+    body {
+      font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, sans-serif;
+      background: linear-gradient(135deg, #075e54 0%, #128c7e 100%);
+      min-height: 100vh;
+      padding: 20px;
+    }
+
+    .container {
+      max-width: 1200px;
+      margin: 0 auto;
+    }
+
+    header {
+      text-align: center;
+      color: white;
+      margin-bottom: 30px;
+    }
+
+    header h1 {
+      font-size: 2.5rem;
+      margin-bottom: 10px;
+    }
+
+    .status-bar {
+      background: white;
+      padding: 15px 25px;
+      border-radius: 10px;
+      display: flex;
+      justify-content: space-between;
+      align-items: center;
+      margin-bottom: 20px;
+      box-shadow: 0 4px 15px rgba(0,0,0,0.2);
+    }
+
+    .status-indicator {
+      display: flex;
+      align-items: center;
+      gap: 10px;
+    }
+
+    .status-dot {
+      width: 12px;
+      height: 12px;
+      border-radius: 50%;
+      background: #dc3545;
+    }
+
+    .status-dot.connected {
+      background: #25d366;
+      box-shadow: 0 0 10px #25d366;
+    }
+
+    .btn {
+      padding: 10px 20px;
+      border: none;
+      border-radius: 8px;
+      cursor: pointer;
+      font-size: 14px;
+      font-weight: 600;
+      transition: all 0.3s;
+    }
+
+    .btn-primary {
+      background: #25d366;
+      color: white;
+    }
+
+    .btn-primary:hover {
+      background: #128c7e;
+    }
+
+    .btn-danger {
+      background: #dc3545;
+      color: white;
+    }
+
+    .btn-danger:hover {
+      background: #c82333;
+    }
+
+    .tabs {
+      display: flex;
+      gap: 10px;
+      margin-bottom: 20px;
+      flex-wrap: wrap;
+    }
+
+    .tab {
+      padding: 12px 24px;
+      background: rgba(255,255,255,0.2);
+      color: white;
+      border: none;
+      border-radius: 8px;
+      cursor: pointer;
+      font-size: 14px;
+      font-weight: 600;
+      transition: all 0.3s;
+    }
+
+    .tab.active {
+      background: white;
+      color: #075e54;
+    }
+
+    .tab:hover {
+      background: rgba(255,255,255,0.4);
+    }
+
+    .tab.active:hover {
+      background: white;
+    }
+
+    .card {
+      background: white;
+      border-radius: 15px;
+      padding: 25px;
+      margin-bottom: 20px;
+      box-shadow: 0 4px 15px rgba(0,0,0,0.2);
+    }
+
+    .card h2 {
+      color: #075e54;
+      margin-bottom: 20px;
+      padding-bottom: 10px;
+      border-bottom: 2px solid #f0f0f0;
+    }
+
+    .form-group {
+      margin-bottom: 20px;
+    }
+
+    .form-group label {
+      display: block;
+      margin-bottom: 8px;
+      font-weight: 600;
+      color: #333;
+    }
+
+    .form-group input,
+    .form-group textarea,
+    .form-group select {
+      width: 100%;
+      padding: 12px;
+      border: 2px solid #e0e0e0;
+      border-radius: 8px;
+      font-size: 14px;
+      transition: border-color 0.3s;
+    }
+
+    .form-group input:focus,
+    .form-group textarea:focus {
+      border-color: #25d366;
+      outline: none;
+    }
+
+    .form-group textarea {
+      min-height: 100px;
+      resize: vertical;
+    }
+
+    .form-group small {
+      color: #666;
+      display: block;
+      margin-top: 5px;
+    }
+
+    .panel {
+      display: none;
+    }
+
+    .panel.active {
+      display: block;
+    }
+
+    .qr-container {
+      text-align: center;
+      padding: 30px;
+    }
+
+    #qr-code {
+      font-family: monospace;
+      font-size: 8px;
+      line-height: 1;
+      background: white;
+      padding: 20px;
+      display: inline-block;
+      border-radius: 10px;
+    }
+
+    .result-box {
+      background: #f8f9fa;
+      border-radius: 8px;
+      padding: 15px;
+      margin-top: 15px;
+      max-height: 300px;
+      overflow-y: auto;
+    }
+
+    .result-item {
+      padding: 8px;
+      border-bottom: 1px solid #e0e0e0;
+      display: flex;
+      justify-content: space-between;
+    }
+
+    .result-item:last-child {
+      border-bottom: none;
+    }
+
+    .result-item.success {
+      color: #28a745;
+    }
+
+    .result-item.error {
+      color: #dc3545;
+    }
+
+    .emoji-picker {
+      display: flex;
+      gap: 10px;
+      flex-wrap: wrap;
+      margin: 15px 0;
+    }
+
+    .emoji-btn {
+      font-size: 24px;
+      padding: 10px;
+      background: #f0f0f0;
+      border: 2px solid transparent;
+      border-radius: 8px;
+      cursor: pointer;
+      transition: all 0.3s;
+    }
+
+    .emoji-btn.selected {
+      border-color: #25d366;
+      background: #e8f5e9;
+    }
+
+    .emoji-btn:hover {
+      background: #e0e0e0;
+    }
+
+    .log-container {
+      background: #1a1a2e;
+      color: #25d366;
+      padding: 20px;
+      border-radius: 8px;
+      font-family: monospace;
+      max-height: 300px;
+      overflow-y: auto;
+    }
+
+    .log-entry {
+      padding: 5px 0;
+      border-bottom: 1px solid #333;
+    }
+
+    .grid-2 {
+      display: grid;
+      grid-template-columns: repeat(auto-fit, minmax(300px, 1fr));
+      gap: 20px;
+    }
+
+    .toggle-switch {
+      position: relative;
+      width: 60px;
+      height: 30px;
+    }
+
+    .toggle-switch input {
+      opacity: 0;
+      width: 0;
+      height: 0;
+    }
+
+    .toggle-slider {
+      position: absolute;
+      cursor: pointer;
+      top: 0;
+      left: 0;
+      right: 0;
+      bottom: 0;
+      background-color: #ccc;
+      transition: 0.4s;
+      border-radius: 30px;
+    }
+
+    .toggle-slider:before {
+      position: absolute;
+      content: "";
+      height: 22px;
+      width: 22px;
+      left: 4px;
+      bottom: 4px;
+      background-color: white;
+      transition: 0.4s;
+      border-radius: 50%;
+    }
+
+    input:checked + .toggle-slider {
+      background-color: #25d366;
+    }
+
+    input:checked + .toggle-slider:before {
+      transform: translateX(30px);
+    }
+
+    @media (max-width: 768px) {
+      header h1 {
+        font-size: 1.8rem;
+      }
+      .status-bar {
+        flex-direction: column;
+        gap: 15px;
+      }
+    }
+  </style>
+</head>
+<body>
+  <div class="container">
+    <header>
+      <h1>WhatsApp Automation</h1>
+      <p>Automatiza estados, mensajes, grupos y reacciones</p>
+    </header>
+
+    <div class="status-bar">
+      <div class="status-indicator">
+        <div class="status-dot" id="status-dot"></div>
+        <span id="status-text">Desconectado</span>
+        <span id="phone-number"></span>
+      </div>
+      <div>
+        <button class="btn btn-primary" id="connect-btn" onclick="connect()">Conectar</button>
+        <button class="btn btn-danger" id="disconnect-btn" onclick="disconnect()" style="display:none">Desconectar</button>
+      </div>
+    </div>
+
+    <div class="tabs">
+      <button class="tab active" onclick="showPanel('messages')">Mensajes</button>
+      <button class="tab" onclick="showPanel('status')">Estados</button>
+      <button class="tab" onclick="showPanel('groups')">Grupos</button>
+      <button class="tab" onclick="showPanel('reactions')">Reacciones</button>
+      <button class="tab" onclick="showPanel('logs')">Logs</button>
+    </div>
+
+    <!-- Panel Mensajes -->
+    <div class="panel active" id="panel-messages">
+      <div class="grid-2">
+        <div class="card">
+          <h2>Enviar Mensaje Individual</h2>
+          <div class="form-group">
+            <label>Número de teléfono</label>
+            <input type="text" id="single-phone" placeholder="5491123456789">
+            <small>Sin + ni espacios. Ej: 5491123456789</small>
+          </div>
+          <div class="form-group">
+            <label>Mensaje</label>
+            <textarea id="single-message" placeholder="Escribe tu mensaje aquí..."></textarea>
+          </div>
+          <button class="btn btn-primary" onclick="sendSingleMessage()">Enviar</button>
+        </div>
+
+        <div class="card">
+          <h2>Envío Masivo</h2>
+          <div class="form-group">
+            <label>Lista de números (uno por línea)</label>
+            <textarea id="bulk-phones" placeholder="5491123456789
+5491198765432
+5491155555555"></textarea>
+          </div>
+          <div class="form-group">
+            <label>Mensaje</label>
+            <textarea id="bulk-message" placeholder="Mensaje para todos..."></textarea>
+          </div>
+          <div class="form-group">
+            <label>Delay entre mensajes (segundos)</label>
+            <input type="number" id="bulk-delay" value="5" min="3" max="60">
+          </div>
+          <button class="btn btn-primary" onclick="sendBulkMessages()">Enviar a Todos</button>
+          <div class="result-box" id="bulk-results" style="display:none"></div>
+        </div>
+      </div>
+    </div>
+
+    <!-- Panel Estados -->
+    <div class="panel" id="panel-status">
+      <div class="grid-2">
+        <div class="card">
+          <h2>Publicar Estado de Texto</h2>
+          <div class="form-group">
+            <label>Texto del estado</label>
+            <textarea id="status-text-input" placeholder="Escribe tu estado..."></textarea>
+          </div>
+          <button class="btn btn-primary" onclick="postTextStatus()">Publicar Estado</button>
+        </div>
+
+        <div class="card">
+          <h2>Publicar Estado con Imagen</h2>
+          <div class="form-group">
+            <label>Imagen</label>
+            <input type="file" id="status-image" accept="image/*">
+          </div>
+          <div class="form-group">
+            <label>Caption (opcional)</label>
+            <input type="text" id="status-image-caption" placeholder="Descripción de la imagen">
+          </div>
+          <button class="btn btn-primary" onclick="postImageStatus()">Publicar Estado</button>
+        </div>
+
+        <div class="card">
+          <h2>Publicar Estado con Video</h2>
+          <div class="form-group">
+            <label>Video</label>
+            <input type="file" id="status-video" accept="video/*">
+          </div>
+          <div class="form-group">
+            <label>Caption (opcional)</label>
+            <input type="text" id="status-video-caption" placeholder="Descripción del video">
+          </div>
+          <button class="btn btn-primary" onclick="postVideoStatus()">Publicar Estado</button>
+        </div>
+
+        <div class="card">
+          <h2>Programar Estado</h2>
+          <div class="form-group">
+            <label>Tipo</label>
+            <select id="schedule-status-type">
+              <option value="text">Texto</option>
+              <option value="image">Imagen</option>
+              <option value="video">Video</option>
+            </select>
+          </div>
+          <div class="form-group">
+            <label>Contenido / Ruta del archivo</label>
+            <input type="text" id="schedule-status-content" placeholder="Texto o ruta del archivo">
+          </div>
+          <div class="form-group">
+            <label>Programación (Cron)</label>
+            <input type="text" id="schedule-status-cron" placeholder="0 9 * * *">
+            <small>Formato cron. Ej: "0 9 * * *" = todos los días a las 9:00</small>
+          </div>
+          <button class="btn btn-primary" onclick="scheduleStatus()">Programar</button>
+        </div>
+      </div>
+    </div>
+
+    <!-- Panel Grupos -->
+    <div class="panel" id="panel-groups">
+      <div class="grid-2">
+        <div class="card">
+          <h2>Unirse a Grupo</h2>
+          <div class="form-group">
+            <label>Link de invitación</label>
+            <input type="text" id="group-link" placeholder="https://chat.whatsapp.com/ABC123...">
+          </div>
+          <button class="btn btn-primary" onclick="joinGroup()">Unirse</button>
+        </div>
+
+        <div class="card">
+          <h2>Unirse a Múltiples Grupos</h2>
+          <div class="form-group">
+            <label>Links (uno por línea)</label>
+            <textarea id="group-links-bulk" placeholder="https://chat.whatsapp.com/ABC123
+https://chat.whatsapp.com/DEF456"></textarea>
+          </div>
+          <button class="btn btn-primary" onclick="joinBulkGroups()">Unirse a Todos</button>
+          <div class="result-box" id="groups-results" style="display:none"></div>
+        </div>
+
+        <div class="card">
+          <h2>Enviar a Todos los Grupos</h2>
+          <div class="form-group">
+            <label>Mensaje</label>
+            <textarea id="groups-message" placeholder="Mensaje para todos los grupos..."></textarea>
+          </div>
+          <button class="btn btn-primary" onclick="sendToAllGroups()">Enviar a Todos</button>
+        </div>
+
+        <div class="card">
+          <h2>Mis Grupos</h2>
+          <button class="btn btn-primary" onclick="loadGroups()">Cargar Grupos</button>
+          <div class="result-box" id="my-groups" style="display:none"></div>
+        </div>
+      </div>
+    </div>
+
+    <!-- Panel Reacciones -->
+    <div class="panel" id="panel-reactions">
+      <div class="card">
+        <h2>Auto-Reacciones</h2>
+        <p>Reacciona automáticamente a todos los mensajes entrantes</p>
+
+        <div style="display: flex; align-items: center; gap: 20px; margin: 20px 0;">
+          <label class="toggle-switch">
+            <input type="checkbox" id="auto-react-toggle" onchange="toggleAutoReact()">
+            <span class="toggle-slider"></span>
+          </label>
+          <span id="auto-react-status">Desactivado</span>
+        </div>
+
+        <div class="form-group">
+          <label>Selecciona los emojis para reaccionar</label>
+          <div class="emoji-picker" id="emoji-picker">
+            <button class="emoji-btn selected" data-emoji="👍">👍</button>
+            <button class="emoji-btn" data-emoji="❤️">❤️</button>
+            <button class="emoji-btn" data-emoji="😂">😂</button>
+            <button class="emoji-btn" data-emoji="😮">😮</button>
+            <button class="emoji-btn" data-emoji="😢">😢</button>
+            <button class="emoji-btn" data-emoji="🙏">🙏</button>
+            <button class="emoji-btn" data-emoji="🔥">🔥</button>
+            <button class="emoji-btn" data-emoji="🎉">🎉</button>
+            <button class="emoji-btn" data-emoji="💯">💯</button>
+            <button class="emoji-btn" data-emoji="👏">👏</button>
+          </div>
+        </div>
+      </div>
+    </div>
+
+    <!-- Panel Logs -->
+    <div class="panel" id="panel-logs">
+      <div class="card">
+        <h2>Logs en Tiempo Real</h2>
+        <div class="log-container" id="logs">
+          <div class="log-entry">Esperando eventos...</div>
+        </div>
+      </div>
+    </div>
+  </div>
+
+  <script>
+    const socket = io();
+    let isConnected = false;
+    let selectedEmojis = ['👍'];
+
+    // Socket events
+    socket.on('connected', (data) => {
+      isConnected = true;
+      updateStatus(true, data.phoneNumber);
+      addLog('✅ Conectado: ' + data.phoneNumber);
+    });
+
+    socket.on('disconnected', (data) => {
+      isConnected = false;
+      updateStatus(false);
+      addLog('❌ Desconectado: ' + (data.reason || 'Sin razón'));
+    });
+
+    socket.on('qr', (qr) => {
+      addLog('📱 Nuevo código QR generado');
+    });
+
+    socket.on('message', (msg) => {
+      addLog('📩 Mensaje de ' + msg.from + ': ' + (msg.text || '[media]'));
+    });
+
+    // Functions
+    async function connect() {
+      try {
+        const res = await fetch('/api/connect', { method: 'POST' });
+        const data = await res.json();
+        addLog('🔄 ' + data.message);
+      } catch (error) {
+        addLog('❌ Error: ' + error.message);
+      }
+    }
+
+    async function disconnect() {
+      try {
+        const res = await fetch('/api/disconnect', { method: 'POST' });
+        const data = await res.json();
+        addLog('👋 ' + data.message);
+      } catch (error) {
+        addLog('❌ Error: ' + error.message);
+      }
+    }
+
+    function updateStatus(connected, phone = '') {
+      const dot = document.getElementById('status-dot');
+      const text = document.getElementById('status-text');
+      const phoneEl = document.getElementById('phone-number');
+      const connectBtn = document.getElementById('connect-btn');
+      const disconnectBtn = document.getElementById('disconnect-btn');
+
+      if (connected) {
+        dot.classList.add('connected');
+        text.textContent = 'Conectado';
+        phoneEl.textContent = '(' + phone + ')';
+        connectBtn.style.display = 'none';
+        disconnectBtn.style.display = 'inline-block';
+      } else {
+        dot.classList.remove('connected');
+        text.textContent = 'Desconectado';
+        phoneEl.textContent = '';
+        connectBtn.style.display = 'inline-block';
+        disconnectBtn.style.display = 'none';
+      }
+    }
+
+    function showPanel(name) {
+      document.querySelectorAll('.panel').forEach(p => p.classList.remove('active'));
+      document.querySelectorAll('.tab').forEach(t => t.classList.remove('active'));
+      document.getElementById('panel-' + name).classList.add('active');
+      event.target.classList.add('active');
+    }
+
+    function addLog(message) {
+      const logs = document.getElementById('logs');
+      const entry = document.createElement('div');
+      entry.className = 'log-entry';
+      entry.textContent = new Date().toLocaleTimeString() + ' - ' + message;
+      logs.insertBefore(entry, logs.firstChild);
+      if (logs.children.length > 100) {
+        logs.removeChild(logs.lastChild);
+      }
+    }
+
+    // Mensajes
+    async function sendSingleMessage() {
+      const phone = document.getElementById('single-phone').value;
+      const message = document.getElementById('single-message').value;
+
+      try {
+        const res = await fetch('/api/send-message', {
+          method: 'POST',
+          headers: { 'Content-Type': 'application/json' },
+          body: JSON.stringify({ phoneNumber: phone, message })
+        });
+        const data = await res.json();
+        addLog(data.success ? '✅ Mensaje enviado a ' + phone : '❌ Error: ' + data.error);
+      } catch (error) {
+        addLog('❌ Error: ' + error.message);
+      }
+    }
+
+    async function sendBulkMessages() {
+      const phones = document.getElementById('bulk-phones').value.split('\n').filter(p => p.trim());
+      const message = document.getElementById('bulk-message').value;
+      const delay = parseInt(document.getElementById('bulk-delay').value);
+
+      const resultsBox = document.getElementById('bulk-results');
+      resultsBox.style.display = 'block';
+      resultsBox.innerHTML = '<div>Enviando...</div>';
+
+      try {
+        const res = await fetch('/api/send-bulk', {
+          method: 'POST',
+          headers: { 'Content-Type': 'application/json' },
+          body: JSON.stringify({ phoneNumbers: phones, message, delaySeconds: delay })
+        });
+        const data = await res.json();
+
+        resultsBox.innerHTML = data.results.map(r =>
+          `<div class="result-item ${r.success ? 'success' : 'error'}">
+            <span>${r.phone}</span>
+            <span>${r.success ? '✅' : '❌ ' + r.error}</span>
+          </div>`
+        ).join('');
+
+        addLog('📤 Envío masivo completado: ' + data.results.filter(r => r.success).length + '/' + data.results.length);
+      } catch (error) {
+        resultsBox.innerHTML = '<div class="error">Error: ' + error.message + '</div>';
+      }
+    }
+
+    // Estados
+    async function postTextStatus() {
+      const text = document.getElementById('status-text-input').value;
+
+      try {
+        const res = await fetch('/api/status/text', {
+          method: 'POST',
+          headers: { 'Content-Type': 'application/json' },
+          body: JSON.stringify({ text })
+        });
+        const data = await res.json();
+        addLog(data.success ? '✅ Estado publicado' : '❌ Error: ' + data.error);
+      } catch (error) {
+        addLog('❌ Error: ' + error.message);
+      }
+    }
+
+    async function postImageStatus() {
+      const file = document.getElementById('status-image').files[0];
+      const caption = document.getElementById('status-image-caption').value;
+
+      if (!file) {
+        addLog('❌ Selecciona una imagen');
+        return;
+      }
+
+      const formData = new FormData();
+      formData.append('image', file);
+      formData.append('caption', caption);
+
+      try {
+        const res = await fetch('/api/status/image', {
+          method: 'POST',
+          body: formData
+        });
+        const data = await res.json();
+        addLog(data.success ? '✅ Estado con imagen publicado' : '❌ Error: ' + data.error);
+      } catch (error) {
+        addLog('❌ Error: ' + error.message);
+      }
+    }
+
+    async function postVideoStatus() {
+      const file = document.getElementById('status-video').files[0];
+      const caption = document.getElementById('status-video-caption').value;
+
+      if (!file) {
+        addLog('❌ Selecciona un video');
+        return;
+      }
+
+      const formData = new FormData();
+      formData.append('video', file);
+      formData.append('caption', caption);
+
+      try {
+        const res = await fetch('/api/status/video', {
+          method: 'POST',
+          body: formData
+        });
+        const data = await res.json();
+        addLog(data.success ? '✅ Estado con video publicado' : '❌ Error: ' + data.error);
+      } catch (error) {
+        addLog('❌ Error: ' + error.message);
+      }
+    }
+
+    async function scheduleStatus() {
+      const type = document.getElementById('schedule-status-type').value;
+      const content = document.getElementById('schedule-status-content').value;
+      const cron = document.getElementById('schedule-status-cron').value;
+
+      try {
+        const res = await fetch('/api/status/schedule', {
+          method: 'POST',
+          headers: { 'Content-Type': 'application/json' },
+          body: JSON.stringify({
+            type,
+            content,
+            cronExpression: cron
+          })
+        });
+        const data = await res.json();
+        addLog(data.success ? '✅ Estado programado' : '❌ Error: ' + data.error);
+      } catch (error) {
+        addLog('❌ Error: ' + error.message);
+      }
+    }
+
+    // Grupos
+    async function joinGroup() {
+      const link = document.getElementById('group-link').value;
+
+      try {
+        const res = await fetch('/api/groups/join', {
+          method: 'POST',
+          headers: { 'Content-Type': 'application/json' },
+          body: JSON.stringify({ inviteLink: link })
+        });
+        const data = await res.json();
+        addLog(data.success ? '✅ Unido al grupo' : '❌ Error: ' + data.error);
+      } catch (error) {
+        addLog('❌ Error: ' + error.message);
+      }
+    }
+
+    async function joinBulkGroups() {
+      const links = document.getElementById('group-links-bulk').value.split('\n').filter(l => l.trim());
+      const resultsBox = document.getElementById('groups-results');
+      resultsBox.style.display = 'block';
+      resultsBox.innerHTML = '<div>Uniéndose a grupos...</div>';
+
+      try {
+        const res = await fetch('/api/groups/join-bulk', {
+          method: 'POST',
+          headers: { 'Content-Type': 'application/json' },
+          body: JSON.stringify({ inviteLinks: links })
+        });
+        const data = await res.json();
+
+        resultsBox.innerHTML = data.results.map(r =>
+          `<div class="result-item ${r.success ? 'success' : 'error'}">
+            <span>${r.link.substring(0, 40)}...</span>
+            <span>${r.success ? '✅' : '❌'}</span>
+          </div>`
+        ).join('');
+      } catch (error) {
+        resultsBox.innerHTML = '<div class="error">Error: ' + error.message + '</div>';
+      }
+    }
+
+    async function sendToAllGroups() {
+      const message = document.getElementById('groups-message').value;
+
+      try {
+        const res = await fetch('/api/groups/send-all', {
+          method: 'POST',
+          headers: { 'Content-Type': 'application/json' },
+          body: JSON.stringify({ message })
+        });
+        const data = await res.json();
+        addLog('📤 Mensaje enviado a ' + data.results.filter(r => r.success).length + ' grupos');
+      } catch (error) {
+        addLog('❌ Error: ' + error.message);
+      }
+    }
+
+    async function loadGroups() {
+      const container = document.getElementById('my-groups');
+      container.style.display = 'block';
+      container.innerHTML = '<div>Cargando...</div>';
+
+      try {
+        const res = await fetch('/api/groups');
+        const data = await res.json();
+
+        if (data.success) {
+          container.innerHTML = data.groups.map(g =>
+            `<div class="result-item">
+              <span>${g.subject}</span>
+              <span>${g.participants?.length || 0} miembros</span>
+            </div>`
+          ).join('');
+        } else {
+          container.innerHTML = '<div class="error">Error: ' + data.error + '</div>';
+        }
+      } catch (error) {
+        container.innerHTML = '<div class="error">Error: ' + error.message + '</div>';
+      }
+    }
+
+    // Reacciones
+    document.querySelectorAll('.emoji-btn').forEach(btn => {
+      btn.addEventListener('click', () => {
+        btn.classList.toggle('selected');
+        updateSelectedEmojis();
+      });
+    });
+
+    function updateSelectedEmojis() {
+      selectedEmojis = Array.from(document.querySelectorAll('.emoji-btn.selected'))
+        .map(btn => btn.dataset.emoji);
+    }
+
+    async function toggleAutoReact() {
+      const toggle = document.getElementById('auto-react-toggle');
+      const status = document.getElementById('auto-react-status');
+
+      if (toggle.checked) {
+        try {
+          const res = await fetch('/api/auto-react/enable', {
+            method: 'POST',
+            headers: { 'Content-Type': 'application/json' },
+            body: JSON.stringify({ emojis: selectedEmojis })
+          });
+          const data = await res.json();
+          status.textContent = 'Activado (' + selectedEmojis.join(' ') + ')';
+          addLog('🎯 Auto-reacción activada');
+        } catch (error) {
+          toggle.checked = false;
+          addLog('❌ Error: ' + error.message);
+        }
+      } else {
+        try {
+          await fetch('/api/auto-react/disable', { method: 'POST' });
+          status.textContent = 'Desactivado';
+          addLog('🔇 Auto-reacción desactivada');
+        } catch (error) {
+          addLog('❌ Error: ' + error.message);
+        }
+      }
+    }
+
+    // Check initial status
+    fetch('/api/status')
+      .then(res => res.json())
+      .then(data => {
+        if (data.whatsapp.isConnected) {
+          updateStatus(true, data.whatsapp.phoneNumber);
+        }
+      });
+  </script>
+</body>
+</html>

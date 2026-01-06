@@ -1,0 +1,9 @@
+{
+  "scheduledStatuses": [],
+  "scheduledMessages": [],
+  "autoReact": {
+    "enabled": false,
+    "emojis": ["👍"]
+  },
+  "groupsToJoin": []
+}
